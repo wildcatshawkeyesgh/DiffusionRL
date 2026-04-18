@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: diffusion
+Version: 0.1.0
+Summary: TreeDiff-RL: diffusion policy with MCTS over denoising trajectories for Othello
+Requires-Python: >=3.10
+Requires-Dist: torch>=2.0
+Requires-Dist: numpy
+Requires-Dist: gymnasium
+Requires-Dist: pyyaml
+Provides-Extra: plots
+Requires-Dist: matplotlib; extra == "plots"

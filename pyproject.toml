@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diffusion"
+version = "0.1.0"
+description = "TreeDiff-RL: diffusion policy with MCTS over denoising trajectories for Othello"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "numpy",
+    "gymnasium",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+plots = ["matplotlib"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,44 @@
+seed: 42
+
+# Game
+action_dim: 64
+state_shape: [3, 8, 8]
+
+# Diffusion
+T: 20
+hidden_dim: 64
+beta_start: 0.0001
+beta_end: 0.02
+denoiser_type: attn   # mlp | attn
+num_heads: 4
+
+# Bootstrap
+num_bootstrap_games: 3000
+
+# Self-improvement loop
+num_iterations: 100
+steps_per_iter: 500
+games_per_iter: 30
+batch_size: 128
+lr: 0.0003
+buffer_max_triples: 500000
+
+# Checkpointing
+checkpoint_dir: checkpoints
+checkpoint_every: 10
+eval_every: 5
+eval_games: 100
+
+# Watch mode
+watch_delay: 0.5
+
+# MCTS over denoising trajectories
+mcts_iterations: 32
+macro_step_k: 5
+puct_c: 1.5
+mcts_num_children: 3
+
+# MCTS curriculum: fraction of self-play games using MCTS
+mcts_fraction_start: 0.01
+mcts_fraction_end: 0.3
+mcts_ramp_style: linear   # linear | step | exponential
