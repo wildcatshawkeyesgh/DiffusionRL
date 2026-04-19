@@ -86,12 +86,13 @@ class DiffusionPolicy(nn.Module):
         return mean + mask * sigma * noise
 
     @torch.no_grad()
-    def select_action(self, state_np, valid_mask_np):
+    def select_action(self, state_np, valid_mask_np, temperature=0.0, return_logits=False):
         """
         Full denoising pass to pick an action.
         state_np:      (3, 8, 8) numpy array or torch tensor
         valid_mask_np: (64,)     bool numpy array or torch tensor
-        returns: int action in [0, 63]
+        temperature:   0.0 → argmax (eval); >0 → sample from softmax(logits / T)
+        return_logits: if True, also return the masked logits (for entropy/heatmap)
         """
         self.eval()
         device = next(self.parameters()).device
@@ -106,4 +107,13 @@ class DiffusionPolicy(nn.Module):
         logits = z.squeeze(0).cpu()
         valid = torch.as_tensor(valid_mask_np, dtype=torch.bool)
         logits[~valid] = float('-inf')
-        return int(torch.argmax(logits).item())
+
+        if temperature > 0:
+            probs = torch.softmax(logits / temperature, dim=-1)
+            action = int(torch.multinomial(probs, 1).item())
+        else:
+            action = int(torch.argmax(logits).item())
+
+        if return_logits:
+            return action, logits
+        return action

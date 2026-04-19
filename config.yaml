@@ -21,13 +21,26 @@ steps_per_iter: 500
 games_per_iter: 30
 batch_size: 128
 lr: 0.0003
+eta_min: 1.0e-6           # cosine annealing floor
 buffer_max_triples: 500000
+
+# Self-play exploration
+selfplay_temperature: 1.0  # >0 sampled, 0 argmax; used by training games only
+temp_drop_move: 15         # after this move count, temperature drops to 0
+
+# Advantage weighting for policy loss
+# - none:       weights = (outcome + 1) / 2 (legacy)
+# - raw:        weights = outcome            (negative signal from losses)
+# - verifier:   weights = outcome - V(s,a)   (per-move advantage via verifier)
+advantage_mode: verifier
+advantage_clip: 1.0        # clip |advantage| to this (tanh-like stability)
 
 # Checkpointing
 checkpoint_dir: checkpoints
 checkpoint_every: 10
 eval_every: 5
 eval_games: 100
+onnx_every: 10             # export ONNX every N iterations (0 = only at end)
 
 # Watch mode
 watch_delay: 0.5
