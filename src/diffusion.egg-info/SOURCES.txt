@@ -10,6 +10,7 @@ src/diffusion/mcts/__init__.py
 src/diffusion/mcts/node.py
 src/diffusion/mcts/tree_search.py
 src/diffusion/models/__init__.py
+src/diffusion/models/attention.py
 src/diffusion/models/denoiser.py
 src/diffusion/models/diffusion.py
 src/diffusion/models/verifier.py
