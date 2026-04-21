@@ -5,7 +5,7 @@ action_dim: 64
 state_shape: [3, 8, 8]
 
 # Diffusion
-T: 20
+T: 30
 hidden_dim: 64
 beta_start: 0.0001
 beta_end: 0.02
@@ -13,7 +13,7 @@ denoiser_type: attn   # mlp | attn
 num_heads: 4
 
 # Bootstrap
-num_bootstrap_games: 3000
+num_bootstrap_games: 750
 
 # Self-improvement loop
 num_iterations: 100
@@ -22,7 +22,7 @@ games_per_iter: 30
 batch_size: 128
 lr: 0.0003
 eta_min: 1.0e-6           # cosine annealing floor
-buffer_max_triples: 500000
+buffer_max_triples: 100000
 
 # Self-play exploration
 selfplay_temperature: 1.0  # >0 sampled, 0 argmax; used by training games only
@@ -44,14 +44,3 @@ onnx_every: 10             # export ONNX every N iterations (0 = only at end)
 
 # Watch mode
 watch_delay: 0.5
-
-# MCTS over denoising trajectories
-mcts_iterations: 32
-macro_step_k: 5
-puct_c: 1.5
-mcts_num_children: 3
-
-# MCTS curriculum: fraction of self-play games using MCTS
-mcts_fraction_start: 0.01
-mcts_fraction_end: 0.3
-mcts_ramp_style: linear   # linear | step | exponential

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "diffusion"
 version = "0.1.0"
-description = "TreeDiff-RL: diffusion policy with MCTS over denoising trajectories for Othello"
+description = "Diffusion policy for Othello, trained via self-play."
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0",

@@ -1,5 +1,4 @@
 import time
-import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -15,14 +14,13 @@ class SelfPlayTrainer:
     """
     Owns the training loop and self-play data collection.
 
-    All components (policy, verifier, mcts, optimizers, buffer) are
-    injected by the caller — this class does not construct them.
+    All components (policy, verifier, optimizers, buffer) are injected
+    by the caller — this class does not construct them.
     """
 
-    def __init__(self, policy, verifier, mcts, policy_optim, verifier_optim, buffer, config):
+    def __init__(self, policy, verifier, policy_optim, verifier_optim, buffer, config):
         self.policy         = policy
         self.verifier       = verifier
-        self.mcts           = mcts
         self.policy_optim   = policy_optim
         self.verifier_optim = verifier_optim
         self.buffer         = buffer
@@ -46,33 +44,6 @@ class SelfPlayTrainer:
         self.winrate_history       = []  # list of (iteration, win_rate)
 
     # ------------------------------------------------------------------ #
-    # MCTS curriculum                                                      #
-    # ------------------------------------------------------------------ #
-
-    def _mcts_fraction(self):
-        progress = self.current_iter / max(self.config['num_iterations'], 1)
-        start = self.config['mcts_fraction_start']
-        end   = self.config['mcts_fraction_end']
-        style = self.config['mcts_ramp_style']
-
-        if style == 'step':
-            if progress < 0.25:
-                return start
-            elif progress < 0.50:
-                return start + (end - start) * 0.33
-            elif progress < 0.75:
-                return start + (end - start) * 0.66
-            else:
-                return end
-        elif style == 'exponential':
-            return start + (end - start) * (progress ** 2)
-        else:
-            return start + (end - start) * progress
-
-    def _should_use_mcts(self):
-        return random.random() < self._mcts_fraction()
-
-    # ------------------------------------------------------------------ #
     # action selection                                                     #
     # ------------------------------------------------------------------ #
 
@@ -83,9 +54,6 @@ class SelfPlayTrainer:
     def _learned_action(self, state, valid_mask, temperature=0.0):
         self.policy.eval()
         return self.policy.select_action(state, valid_mask, temperature=temperature)
-
-    def _mcts_action(self, state, valid_mask):
-        return self.mcts.select_action(state, valid_mask)
 
     def _training_action_fn(self):
         """
@@ -134,11 +102,10 @@ class SelfPlayTrainer:
         return env, states, actions, outcomes
 
     def play_training_game(self):
-        use_mcts = self._should_use_mcts()
         self.games_played += 1
-        fn = self._mcts_action if use_mcts else self._training_action_fn()
+        fn = self._training_action_fn()
         env, states, actions, outcomes = self.play_game(fn)
-        return env, states, actions, outcomes, use_mcts
+        return env, states, actions, outcomes
 
     # ------------------------------------------------------------------ #
     # bootstrap / data generation                                          #
@@ -241,11 +208,6 @@ class SelfPlayTrainer:
         ckpt_dir.mkdir(exist_ok=True)
 
         print(f"Training on device: {self.device}")
-        frac_s = cfg['mcts_fraction_start']
-        frac_e = cfg['mcts_fraction_end']
-        print(f"MCTS curriculum: {frac_s:.0%} → {frac_e:.0%} ({cfg['mcts_ramp_style']})")
-        print(f"MCTS per action: {cfg['mcts_iterations']} iters, k={cfg['macro_step_k']}, "
-              f"children={cfg['mcts_num_children']}, c_puct={cfg['puct_c']}")
         print(f"Advantage mode: {cfg.get('advantage_mode', 'none')}  "
               f"self-play temp: {cfg.get('selfplay_temperature', 1.0)} "
               f"(drops after move {cfg.get('temp_drop_move', 15)})")
@@ -259,7 +221,6 @@ class SelfPlayTrainer:
         while self.current_iter < cfg['num_iterations']:
             iter_t0 = time.time()
             self.current_iter += 1
-            mcts_games = 0
 
             p_losses, v_losses = [], []
             for _ in range(cfg['steps_per_iter']):
@@ -276,10 +237,8 @@ class SelfPlayTrainer:
             self.loss_history_verifier.append(avg_vl)
 
             for _ in range(cfg['games_per_iter']):
-                env, states, actions, outcomes, used_mcts = self.play_training_game()
+                env, states, actions, outcomes = self.play_training_game()
                 self.buffer.add_game(states, actions, outcomes)
-                if used_mcts:
-                    mcts_games += 1
 
             iter_sec = time.time() - iter_t0
             self.train_time_seconds += iter_sec
@@ -289,7 +248,6 @@ class SelfPlayTrainer:
                    f"  p_loss={avg_pl:.4f}"
                    f"  v_loss={avg_vl:.4f}"
                    f"  lr={cur_lr:.2e}"
-                   f"  mcts={mcts_games}/{cfg['games_per_iter']}"
                    f"  buffer={len(self.buffer):,}"
                    f"  dt={iter_sec:.1f}s"
                    f"  total={self._fmt_time(self.train_time_seconds)}")
@@ -346,14 +304,13 @@ class SelfPlayTrainer:
     # evaluation                                                           #
     # ------------------------------------------------------------------ #
 
-    def evaluate_vs_random(self, n_games=100, use_mcts=False, diagnostics=False):
+    def evaluate_vs_random(self, n_games=100, diagnostics=False):
         """
         Play n_games vs a random opponent, alternating colors.
 
         If diagnostics=True, also tracks action entropy, per-cell heatmap,
         and win rate by color. Returns (w, d, l, diag_dict) in that case.
         """
-        import math
         rows, cols = self.config['state_shape'][1], self.config['state_shape'][2]
 
         wins = draws = losses = 0
@@ -363,8 +320,6 @@ class SelfPlayTrainer:
         entropies = []
 
         def agent_fn(state, valid_mask):
-            if use_mcts:
-                return self.mcts.select_action(state, valid_mask)
             if diagnostics:
                 self.policy.eval()
                 action, logits = self.policy.select_action(
@@ -420,11 +375,8 @@ class SelfPlayTrainer:
     def evaluation(self, plot=False):
         print("\n=== Evaluation ===")
 
-        w, d, l = self.evaluate_vs_random(200, use_mcts=False)
+        w, d, l = self.evaluate_vs_random(200)
         print(f"Policy vs random (200 games):  W={w:.1%}  D={d:.1%}  L={l:.1%}")
-
-        w_m, d_m, l_m = self.evaluate_vs_random(50, use_mcts=True)
-        print(f"MCTS   vs random  (50 games):  W={w_m:.1%}  D={d_m:.1%}  L={l_m:.1%}")
 
         if self.loss_history_policy:
             print(f"\nTraining summary ({self.current_iter} iterations):")
@@ -460,7 +412,7 @@ class SelfPlayTrainer:
                 plt.close()
                 print("Saved winrate_curve.png")
 
-        return w, d, l, w_m, d_m, l_m
+        return w, d, l
 
     # ------------------------------------------------------------------ #
     # checkpointing                                                        #
@@ -580,11 +532,11 @@ class SelfPlayTrainer:
     # watch mode                                                           #
     # ------------------------------------------------------------------ #
 
-    def watch_game(self, opponent='random', use_mcts=False, delay=None, step_mode=False):
+    def watch_game(self, opponent='random', delay=None, step_mode=False):
         if delay is None:
             delay = self.config['watch_delay']
 
-        fn = self._mcts_action if use_mcts else self._learned_action
+        fn = self._learned_action
 
         if opponent == 'random':
             fn0, fn1 = fn, self._random_action
@@ -595,12 +547,11 @@ class SelfPlayTrainer:
         else:
             raise ValueError(f"Unknown opponent: '{opponent}'. Use 'random' or 'self'.")
 
-        mcts_tag   = " (MCTS)" if use_mcts else ""
         speed_hint = ("step mode — press Enter to advance" if step_mode
                       else f"delay={delay}s")
 
         print(f"\n{'='*50}")
-        print(f"  Watching: {label[0]}{mcts_tag} vs {label[1]}")
+        print(f"  Watching: {label[0]} vs {label[1]}")
         print(f"  {speed_hint}")
         print(f"{'='*50}\n")
 
@@ -620,7 +571,7 @@ class SelfPlayTrainer:
 
             move_num += 1
             r, c = divmod(action, env.SIZE)
-            print(f"  Move {move_num:2d}: {label[mover]}{mcts_tag} → ({r},{c})")
+            print(f"  Move {move_num:2d}: {label[mover]} → ({r},{c})")
 
             obs, _, done, _, info = env.step(action)
             env.render()

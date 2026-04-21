@@ -2,7 +2,7 @@ import yaml
 import torch
 from pathlib import Path
 
-from diffusion import models, rl, mcts, utils
+from diffusion import models, rl, utils
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -32,13 +32,12 @@ def main():
 
     policy         = models.DiffusionPolicy(cfg).to(device)
     verifier       = models.DualSpaceVerifier(cfg).to(device)
-    tree           = mcts.TreeDiffMCTS(policy, verifier, cfg)
     policy_optim   = torch.optim.Adam(policy.parameters(),   lr=cfg['lr'])
     verifier_optim = torch.optim.Adam(verifier.parameters(), lr=cfg['lr'])
     buffer         = rl.ReplayBuffer(cfg['buffer_max_triples'])
 
     trainer = rl.SelfPlayTrainer(
-        policy, verifier, tree,
+        policy, verifier,
         policy_optim, verifier_optim,
         buffer, cfg,
     )

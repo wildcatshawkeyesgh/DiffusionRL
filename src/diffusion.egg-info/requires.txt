@@ -1,7 +1,0 @@
-torch>=2.0
-numpy
-gymnasium
-pyyaml
-
-[plots]
-matplotlib
